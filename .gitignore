@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+coverage/
+*.tsbuildinfo
+
+# environment (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# uploads (local storage driver)
+uploads/
+
+# logs / OS / IDE
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
