@@ -126,7 +126,7 @@ export class OrdersService {
         const items = await tx.cartItem.findMany({
           where: { cartId: cart.id },
           orderBy: { createdAt: 'asc' },
-          select: { productId: true, quantity: true },
+          select: { productId: true, quantity: true, note: true },
         });
         if (!items.length) throw AppException.badRequest(ErrorCode.CART_EMPTY, 'Cart is empty');
 
@@ -169,6 +169,7 @@ export class OrdersService {
             price, // 9. snapshot of the final price at purchase time
             quantity: i.quantity,
             subtotal,
+            note: i.note, // the customer's note travels with the item
           };
         });
 

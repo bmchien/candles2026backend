@@ -286,6 +286,31 @@ describe('Cart and checkout (e2e)', () => {
   });
 
   describe('POST /orders', () => {
+    it('copies each line note (colour, scent…) from the cart to the order', async () => {
+      const { token } = await registerCustomer(ctx, 'notes@example.com');
+      const added = await ctx
+        .http()
+        .post('/cart/items')
+        .set(bearer(token))
+        .send({ productId: Number(fx.products.plain.id), note: '  Màu hồng  ' })
+        .expect(201);
+      expect(added.body.data.items[0].note).toBe('Màu hồng');
+      await ctx
+        .http()
+        .put(`/cart/items/${fx.products.plain.id}`)
+        .set(bearer(token))
+        .send({ note: 'Màu hồng, hương hoa nhài' })
+        .expect(200);
+      await ctx
+        .http()
+        .put(`/cart/items/${fx.products.plain.id}`)
+        .set(bearer(token))
+        .send({ note: 'x'.repeat(501) })
+        .expect(400);
+      const order = await checkout(token, { shippingMethod: 'PICKUP' }).expect(201);
+      expect(order.body.data.items[0].note).toBe('Màu hồng, hương hoa nhài');
+    });
+
     it('requires a desired receive date between today and 180 days ahead (Vietnam time)', async () => {
       const { token } = await registerCustomer(ctx, 'desired-date@example.com');
       await addToCart(token, fx.products.plain.id).expect(201);

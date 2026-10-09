@@ -33,6 +33,7 @@ function item(id: bigint, product: OrderWithItems['items'][number]['product']) {
     price: new Prisma.Decimal(50),
     quantity: 2,
     subtotal: new Prisma.Decimal(100),
+    note: product ? 'Màu hồng, hương hoa nhài' : null,
     product,
   };
 }
@@ -44,6 +45,7 @@ describe('toOrderResponse', () => {
       product_code: 'SNAP-1',
       product_name: 'Snapshot name',
       image: 'https://img.test/a.jpg',
+      note: 'Màu hồng, hương hoa nhài',
     });
     expect(res.address).toBeNull();
     expect(res.desired_date).toBe('2026-10-20');

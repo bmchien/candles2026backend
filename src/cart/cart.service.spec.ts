@@ -1,7 +1,7 @@
 import { ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CartOwner, hashCartToken, userOwner } from './cart-owner';
-import { CartService } from './cart.service';
+import { appendNote, CartService } from './cart.service';
 
 describe('CartService.addItem', () => {
   const owner = userOwner(5n);
@@ -84,6 +84,30 @@ describe('CartService.addItem', () => {
     });
   });
 
+  it('appends a note sent with a repeated add; keeps the note when none is sent', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 9n,
+      isActive: true,
+      status: ProductStatus.IN_STOCK,
+    });
+    await service.addItem(owner, { productId: 9, quantity: 1, note: 'Màu xanh lá' });
+    expect(prisma.cartItem.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        create: { cartId: 1n, productId: 9n, quantity: 1, note: 'Màu xanh lá' },
+        update: { quantity: 1, note: 'Màu xanh lá' },
+      }),
+    );
+    prisma.cartItem.findUnique.mockResolvedValue({ quantity: 1, note: 'Màu xanh lá' });
+    await service.addItem(owner, { productId: 9, quantity: 1, note: 'Màu hồng' });
+    expect(prisma.cartItem.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ update: { quantity: 2, note: 'Màu xanh lá | Màu hồng' } }),
+    );
+    await service.addItem(owner, { productId: 9, quantity: 1 });
+    expect(prisma.cartItem.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ update: { quantity: 2 } }),
+    );
+  });
+
   it('caps the quantity per product', async () => {
     prisma.product.findUnique.mockResolvedValue({
       id: 9n,
@@ -145,6 +169,24 @@ describe('CartService guest carts', () => {
         where: { guestTokenHash: guest.kind === 'guest' && guest.tokenHash },
       }),
     );
+  });
+
+  it('updates only the note when no quantity is sent; requires at least one field', async () => {
+    const update = jest.fn();
+    (prisma as unknown as { cartItem: Record<string, jest.Mock> }).cartItem.update = update;
+    prisma.cartItem.findFirst.mockResolvedValue({
+      id: 4n,
+      quantity: 2,
+      product: { isActive: true, status: ProductStatus.OUT_OF_STOCK },
+    });
+    await service.updateItem({ kind: 'user', userId: 5n }, 9n, { note: 'Khắc chữ An' });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 4n },
+      data: { quantity: undefined, note: 'Khắc chữ An' },
+    });
+    await expect(service.updateItem({ kind: 'user', userId: 5n }, 9n, {})).rejects.toMatchObject({
+      status: 400,
+    });
   });
 
   it('guest without a cart sees an empty cart and cannot modify items', async () => {
@@ -209,7 +251,10 @@ describe('CartService.mergeGuestCart', () => {
     expect(sql).toContain('ON CONFLICT (cart_id, product_id) DO UPDATE');
     expect(sql).toContain('p.is_active = true');
     expect(sql).toContain("p.status = 'IN_STOCK'");
-    expect(values).toEqual([2n, 99, 7n, 99]); // user cart, cap, guest cart, cap
+    // notes travel with the lines; two different notes for one product are both kept
+    expect(sql).toContain('gi.note');
+    expect(sql).toContain("cart_items.note || ' | ' || EXCLUDED.note");
+    expect(values).toEqual([2n, 99, 7n, 99, 500]); // user cart, cap, guest cart, cap, note max
     expect(tx.cart.delete).toHaveBeenCalledWith({ where: { id: 7n } });
   });
 
@@ -231,5 +276,20 @@ describe('CartService.mergeGuestCart', () => {
     expect(tx.cart.delete).not.toHaveBeenCalled();
     const none = await service.mergeGuestCart(5n, null);
     expect(none.merge).toEqual({ merged: 0, skipped: 0 });
+  });
+});
+
+describe('appendNote', () => {
+  it('appends a new note, ignores empty or repeated ones', () => {
+    expect(appendNote(null, 'Hồng')).toBe('Hồng');
+    expect(appendNote('Hồng', null)).toBe('Hồng');
+    expect(appendNote('Hồng', 'Xanh')).toBe('Hồng | Xanh');
+    expect(appendNote('Hồng | Xanh', 'Xanh')).toBe('Hồng | Xanh');
+  });
+
+  it('rejects a combined note over 500 characters instead of cutting it', () => {
+    expect(() => appendNote('a'.repeat(450), 'b'.repeat(60))).toThrow(
+      expect.objectContaining({ code: 'NOTE_TOO_LONG' }),
+    );
   });
 });

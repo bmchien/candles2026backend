@@ -66,7 +66,7 @@ export class CartController {
 
   @Put('items/:productId')
   @OptionalAuth()
-  @ApiOperation({ summary: 'Set the quantity of a product in the cart' })
+  @ApiOperation({ summary: 'Set the quantity and/or the note of a product in the cart' })
   @ApiOkWrapped(CartResponseDto)
   @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.CONFLICT)
   update(

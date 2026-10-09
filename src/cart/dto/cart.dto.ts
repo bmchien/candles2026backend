@@ -1,9 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export const MAX_ITEM_QUANTITY = 99;
+export const MAX_NOTE_LENGTH = 500;
+
+/** Trims a note; an empty note becomes null (= no note). */
+const toNote = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() || null : value;
 
 export class AddCartItemDto {
   @Type(() => Number)
@@ -19,16 +24,36 @@ export class AddCartItemDto {
   @Max(MAX_ITEM_QUANTITY)
   @IsOptional()
   quantity: number = 1;
+
+  /** Optional note for this product (colour, scent, message…). Appended to an existing note. */
+  @ApiPropertyOptional({ maxLength: MAX_NOTE_LENGTH, nullable: true, type: String })
+  @Transform(toNote)
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  @MaxLength(MAX_NOTE_LENGTH)
+  @IsOptional()
+  note?: string | null;
 }
 
+/** Send `quantity`, `note`, or both. */
 export class UpdateCartItemDto {
   /** New absolute quantity. Use DELETE to remove an item. */
-  @ApiProperty({ minimum: 1, maximum: MAX_ITEM_QUANTITY })
+  @ApiPropertyOptional({ minimum: 1, maximum: MAX_ITEM_QUANTITY })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(MAX_ITEM_QUANTITY)
-  quantity: number;
+  @IsOptional()
+  quantity?: number;
+
+  /** New note for this line; empty string or null removes it. */
+  @ApiPropertyOptional({ maxLength: MAX_NOTE_LENGTH, nullable: true, type: String })
+  @Transform(toNote)
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  @MaxLength(MAX_NOTE_LENGTH)
+  @IsOptional()
+  note?: string | null;
 }
 
 export class CartProductDto {
@@ -66,6 +91,9 @@ export class CartItemResponseDto {
 
   @ApiProperty({ description: 'final_price × quantity', example: 41382000 })
   subtotal: number;
+
+  @ApiProperty({ nullable: true, type: String, description: "Customer's note for this product" })
+  note: string | null;
 
   @ApiProperty({ description: 'false when the product is hidden or out of stock' })
   available: boolean;

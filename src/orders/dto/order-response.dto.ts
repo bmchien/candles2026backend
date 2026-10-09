@@ -34,6 +34,9 @@ export class OrderItemResponseDto {
 
   @ApiProperty({ example: 41382000 })
   subtotal: number;
+
+  @ApiProperty({ nullable: true, type: String, description: "Customer's note for this product" })
+  note: string | null;
 }
 
 export class OrderAddressDto {

@@ -87,8 +87,8 @@ describe('OrdersService.create (checkout)', () => {
       cart: { findUnique: jest.fn().mockResolvedValue({ id: 11n }) },
       cartItem: {
         findMany: jest.fn().mockResolvedValue([
-          { productId: 1n, quantity: 2 },
-          { productId: 2n, quantity: 1 },
+          { productId: 1n, quantity: 2, note: 'Màu hồng pastel' },
+          { productId: 2n, quantity: 1, note: null },
         ]),
         deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
@@ -135,8 +135,8 @@ describe('OrdersService.create (checkout)', () => {
     expect(data.status).toBe('AWAITING_DEPOSIT');
     expect((data.desiredDate as Date).toISOString().slice(0, 10)).toBe(addDays(businessToday(), 3));
     expect(data.items.create).toEqual([
-      expect.objectContaining({ productCode: 'SKU-1', quantity: 2 }),
-      expect.objectContaining({ productCode: 'SKU-2', quantity: 1 }),
+      expect.objectContaining({ productCode: 'SKU-1', quantity: 2, note: 'Màu hồng pastel' }),
+      expect.objectContaining({ productCode: 'SKU-2', quantity: 1, note: null }),
     ]);
     // OrderItem.price is the *final* price at purchase time (10% off 1,000,000)
     expect(data.items.create[0].price.toNumber()).toBe(900_000);

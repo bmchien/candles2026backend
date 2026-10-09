@@ -13,7 +13,12 @@ import {
   ownerWhere,
   userOwner,
 } from './cart-owner';
-import { AddCartItemDto, MAX_ITEM_QUANTITY, UpdateCartItemDto } from './dto/cart.dto';
+import {
+  AddCartItemDto,
+  MAX_ITEM_QUANTITY,
+  MAX_NOTE_LENGTH,
+  UpdateCartItemDto,
+} from './dto/cart.dto';
 
 const cartItemInclude = {
   product: {
@@ -48,9 +53,30 @@ export function assertPurchasable(product: {
   }
 }
 
+const NOTE_SEPARATOR = ' | ';
+
 /** Guest carts untouched for this long are deleted (opportunistically, see cleanupGuestCarts). */
 export const GUEST_CART_TTL_DAYS = 30;
 const GUEST_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Adding a product again with a new note appends it to the line's note (" | "), so nothing the
+ * customer wrote is lost; a repeated or empty note changes nothing. Notes are never truncated
+ * silently: a result longer than MAX_NOTE_LENGTH is rejected so the customer can shorten it.
+ */
+export function appendNote(existing: string | null, added: string | null): string | null {
+  if (!added) return existing;
+  if (!existing) return added;
+  if (existing.split(NOTE_SEPARATOR).includes(added)) return existing;
+  const combined = `${existing}${NOTE_SEPARATOR}${added}`;
+  if (combined.length > MAX_NOTE_LENGTH) {
+    throw AppException.badRequest(
+      ErrorCode.NOTE_TOO_LONG,
+      `The product's note would exceed ${MAX_NOTE_LENGTH} characters; shorten it in the cart`,
+    );
+  }
+  return combined;
+}
 
 @Injectable()
 export class CartService {
@@ -93,26 +119,40 @@ export class CartService {
     const cart = await this.ensureCart(owner);
     const existing = await this.prisma.cartItem.findUnique({
       where: { cartId_productId: { cartId: cart.id, productId } },
-      select: { quantity: true },
+      select: { quantity: true, note: true },
     });
     const quantity = (existing?.quantity ?? 0) + dto.quantity;
     this.assertQuantity(quantity);
 
+    const combined = appendNote(existing?.note ?? null, dto.note ?? null);
+    const note = combined !== (existing?.note ?? null) ? { note: combined } : {};
     await this.prisma.cartItem.upsert({
       where: { cartId_productId: { cartId: cart.id, productId } },
-      create: { cartId: cart.id, productId, quantity },
-      update: { quantity },
+      create: { cartId: cart.id, productId, quantity, ...note },
+      update: { quantity, ...note },
     });
     const response = await this.getCart(owner);
     return issuedToken ? { ...response, guest_token: issuedToken } : response;
   }
 
   async updateItem(owner: CartOwner | null, productId: bigint, dto: UpdateCartItemDto) {
+    if (dto.quantity === undefined && dto.note === undefined) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+        'Send quantity and/or note',
+      );
+    }
     const item = await this.findItemOrThrow(owner, productId);
-    // Increasing the quantity requires the product to be purchasable; decreasing is always allowed.
-    if (dto.quantity > item.quantity) assertPurchasable(item.product);
-    this.assertQuantity(dto.quantity);
-    await this.prisma.cartItem.update({ where: { id: item.id }, data: { quantity: dto.quantity } });
+    if (dto.quantity !== undefined) {
+      // Increasing the quantity requires the product to be purchasable; decreasing is always allowed.
+      if (dto.quantity > item.quantity) assertPurchasable(item.product);
+      this.assertQuantity(dto.quantity);
+    }
+    await this.prisma.cartItem.update({
+      where: { id: item.id },
+      data: { quantity: dto.quantity, note: dto.note },
+    });
     return this.getCart(owner);
   }
 
@@ -154,8 +194,8 @@ export class CartService {
         });
         // One statement: copy purchasable lines, adding to existing quantities (capped).
         merged = await tx.$executeRaw`
-          INSERT INTO cart_items (cart_id, product_id, quantity, created_at, updated_at)
-          SELECT ${userCart.id}, gi.product_id, LEAST(gi.quantity, ${MAX_ITEM_QUANTITY}), NOW(), NOW()
+          INSERT INTO cart_items (cart_id, product_id, quantity, note, created_at, updated_at)
+          SELECT ${userCart.id}, gi.product_id, LEAST(gi.quantity, ${MAX_ITEM_QUANTITY}), gi.note, NOW(), NOW()
           FROM cart_items gi
           JOIN products p ON p.id = gi.product_id
           WHERE gi.cart_id = ${guestCart.id}
@@ -163,6 +203,11 @@ export class CartService {
             AND p.status = 'IN_STOCK'
           ON CONFLICT (cart_id, product_id) DO UPDATE
           SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, ${MAX_ITEM_QUANTITY}),
+              note = CASE
+                WHEN cart_items.note IS NULL THEN EXCLUDED.note
+                WHEN EXCLUDED.note IS NULL OR EXCLUDED.note = cart_items.note THEN cart_items.note
+                ELSE LEFT(cart_items.note || ' | ' || EXCLUDED.note, ${MAX_NOTE_LENGTH}::int)
+              END,
               updated_at = NOW()`;
         skipped = guestCart._count.items - merged;
         await tx.cart.delete({ where: { id: guestCart.id } }); // cascades to its items
@@ -261,6 +306,7 @@ export class CartService {
           status: p.status,
         },
         quantity: item.quantity,
+        note: item.note,
         unit_price: p.price,
         final_price: finalPrice,
         subtotal,

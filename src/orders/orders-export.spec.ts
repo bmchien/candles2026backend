@@ -39,6 +39,7 @@ function order(
         price: D(total / 2),
         quantity: 2,
         subtotal: D(total),
+        note: status === OrderStatus.CANCELLED ? null : 'Màu hồng',
         product: null,
       },
     ],
@@ -73,7 +74,8 @@ describe('buildOrdersWorkbook', () => {
     );
     expect(cell(orders, 2, 'Trạng thái')).toBe('Chờ cọc');
     expect(cell(orders, 2, 'Địa chỉ')).toBe('12 Kim Mã, Phường Ba Đình, Thành phố Hà Nội');
-    expect(cell(orders, 2, 'Sản phẩm')).toBe('Nến thơm Vườn nhà × 2');
+    expect(cell(orders, 2, 'Sản phẩm')).toBe('Nến thơm Vườn nhà × 2 (ghi chú: Màu hồng)');
+    expect(cell(orders, 3, 'Sản phẩm')).toBe('Nến thơm Vườn nhà × 2');
     expect(cell(orders, 2, 'Tổng tiền')).toBe(560_000);
     expect(cell(orders, 3, 'Trạng thái')).toBe('Huỷ');
     expect(cell(orders, 3, 'Địa chỉ')).toBe('Nhận tại cửa hàng');
@@ -85,6 +87,7 @@ describe('buildOrdersWorkbook', () => {
     expect(lines.rowCount).toBe(3);
     expect(cell(lines, 2, 'Mã sản phẩm')).toBe('HOM-037');
     expect(cell(lines, 2, 'Thành tiền')).toBe(560_000);
+    expect(cell(lines, 2, 'Ghi chú')).toBe('Màu hồng');
   });
 
   it('produces a valid workbook for an empty result', async () => {

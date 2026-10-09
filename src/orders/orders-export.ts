@@ -70,6 +70,7 @@ export async function buildOrdersWorkbook(orders: AdminOrderWithItems[]): Promis
     { header: 'Đơn giá', key: 'price', width: 15, style: { numFmt: MONEY_FORMAT } },
     { header: 'Số lượng', key: 'quantity', width: 10 },
     { header: 'Thành tiền', key: 'subtotal', width: 16, style: { numFmt: MONEY_FORMAT } },
+    { header: 'Ghi chú', key: 'note', width: 40 },
   ];
 
   let grandTotal = 0;
@@ -89,7 +90,9 @@ export async function buildOrdersWorkbook(orders: AdminOrderWithItems[]): Promis
       email: o.user.email,
       shipping: SHIPPING_LABELS[o.shippingMethod],
       address: address(o),
-      products: o.items.map((i) => `${i.productName} × ${i.quantity}`).join('; '),
+      products: o.items
+        .map((i) => `${i.productName} × ${i.quantity}${i.note ? ` (ghi chú: ${i.note})` : ''}`)
+        .join('; '),
       quantity: o.items.reduce((n, i) => n + i.quantity, 0),
       total,
     });
@@ -103,6 +106,7 @@ export async function buildOrdersWorkbook(orders: AdminOrderWithItems[]): Promis
         price: i.price.toNumber(),
         quantity: i.quantity,
         subtotal: i.subtotal.toNumber(),
+        note: i.note ?? '',
       });
     }
   }

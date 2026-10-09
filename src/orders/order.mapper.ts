@@ -57,6 +57,7 @@ export function toOrderResponse(o: OrderWithItems) {
       price: i.price,
       quantity: i.quantity,
       subtotal: i.subtotal,
+      note: i.note,
     })),
     created_at: o.createdAt,
     updated_at: o.updatedAt,
