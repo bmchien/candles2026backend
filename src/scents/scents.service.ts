@@ -8,7 +8,6 @@ import {
 import { AppException } from '../common/exceptions/app.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-import { UploadsService } from '../uploads/uploads.service';
 import { CreateScentDto, UpdateScentDto } from './dto/scent.dto';
 
 /** Display order: perfume scents first, then natural ones; by name (Vietnamese collation). */
@@ -35,7 +34,6 @@ export class ScentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: MemoryCacheService,
-    private readonly uploads: UploadsService,
   ) {}
 
   /** Showcase page: visible scents only, optionally of one type. */
@@ -85,26 +83,15 @@ export class ScentsService {
         isActive: dto.isActive,
       },
     });
-    // A replaced or removed uploaded image is no longer referenced: delete the file.
-    if (dto.imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== dto.imageUrl) {
-      await this.uploads.deleteByUrl(existing.imageUrl);
-    }
     this.afterWrite('updated', id);
     return toAdmin(scent);
   }
 
   async remove(id: bigint) {
-    const existing = await this.findOrThrow(id);
+    await this.findOrThrow(id);
     await this.prisma.scent.delete({ where: { id } });
-    if (existing.imageUrl) await this.uploads.deleteByUrl(existing.imageUrl);
     this.afterWrite('deleted', id);
     return { id, deleted: true };
-  }
-
-  /** Stores an uploaded image (jpeg/png/webp/gif, checked by content) and returns its URL. */
-  async uploadImage(file: Express.Multer.File | undefined) {
-    if (!file) throw AppException.badRequest(ErrorCode.INVALID_FILE, 'No image file uploaded');
-    return { url: await this.uploads.saveImage(file, 'scents') };
   }
 
   private async findOrThrow(id: bigint): Promise<Scent> {

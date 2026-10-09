@@ -1,7 +1,6 @@
 import { Scent, ScentType } from '@prisma/client';
 import { MemoryCacheService } from '../common/cache/memory-cache.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { UploadsService } from '../uploads/uploads.service';
 import { ScentsService } from './scents.service';
 
 const at = new Date('2026-10-07T00:00:00Z');
@@ -28,7 +27,6 @@ describe('ScentsService', () => {
       delete: jest.Mock;
     };
   };
-  let uploads: { deleteByUrl: jest.Mock; saveImage: jest.Mock };
   let service: ScentsService;
 
   beforeEach(() => {
@@ -46,15 +44,7 @@ describe('ScentsService', () => {
         delete: jest.fn(),
       },
     };
-    uploads = {
-      deleteByUrl: jest.fn(),
-      saveImage: jest.fn().mockResolvedValue('http://x/uploads/scents/a.png'),
-    };
-    service = new ScentsService(
-      prisma as unknown as PrismaService,
-      new MemoryCacheService(),
-      uploads as unknown as UploadsService,
-    );
+    service = new ScentsService(prisma as unknown as PrismaService, new MemoryCacheService());
   });
 
   it('public list: only visible scents, perfume first, then by Vietnamese name', async () => {
@@ -90,30 +80,18 @@ describe('ScentsService', () => {
     expect(res.is_active).toBe(true);
   });
 
-  it('deletes the previously uploaded image when it is replaced, keeps it otherwise', async () => {
-    prisma.scent.findUnique.mockResolvedValue(
-      scent(1n, 'Hoa nhài', ScentType.NATURAL, { imageUrl: 'http://x/uploads/scents/old.png' }),
-    );
-    await service.update(1n, { isActive: false });
-    expect(uploads.deleteByUrl).not.toHaveBeenCalled();
-    await service.update(1n, { imageUrl: 'http://x/uploads/scents/new.png' });
-    expect(uploads.deleteByUrl).toHaveBeenCalledWith('http://x/uploads/scents/old.png');
-  });
-
-  it('removing a scent deletes its image; unknown ids are 404', async () => {
-    prisma.scent.findUnique.mockResolvedValueOnce(
-      scent(1n, 'Hoa nhài', ScentType.NATURAL, { imageUrl: 'http://x/uploads/scents/a.png' }),
-    );
-    await service.remove(1n);
-    expect(uploads.deleteByUrl).toHaveBeenCalledWith('http://x/uploads/scents/a.png');
-    prisma.scent.findUnique.mockResolvedValueOnce(null);
+  it('rejects an unknown id with 404 SCENT_NOT_FOUND', async () => {
+    prisma.scent.findUnique.mockResolvedValue(null);
     await expect(service.remove(2n)).rejects.toMatchObject({
       status: 404,
       code: 'SCENT_NOT_FOUND',
     });
+    await expect(service.update(2n, { isActive: false })).rejects.toMatchObject({ status: 404 });
   });
 
-  it('image upload requires a file', async () => {
-    await expect(service.uploadImage(undefined)).rejects.toMatchObject({ code: 'INVALID_FILE' });
+  it('removes an existing scent', async () => {
+    prisma.scent.findUnique.mockResolvedValue(scent(1n, 'Hoa nhài', ScentType.NATURAL));
+    await expect(service.remove(1n)).resolves.toEqual({ id: 1n, deleted: true });
+    expect(prisma.scent.delete).toHaveBeenCalledWith({ where: { id: 1n } });
   });
 });

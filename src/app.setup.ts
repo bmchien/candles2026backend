@@ -10,7 +10,6 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { NodeEnv } from './config/env.validation';
-import { PUBLIC_UPLOAD_PREFIX, UploadsService } from './uploads/uploads.service';
 
 function flattenValidationErrors(
   errors: ValidationError[],
@@ -37,8 +36,6 @@ export function configureApp(app: NestExpressApplication): void {
 
   app.use(
     helmet({
-      // Images in /uploads are loaded by the Next.js frontend from another origin.
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
       // Swagger UI needs inline scripts/styles; the API itself only serves JSON.
       contentSecurityPolicy: isProd ? undefined : false,
     }),
@@ -84,15 +81,6 @@ export function configureApp(app: NestExpressApplication): void {
     new CacheControlInterceptor(app.get(Reflector)),
     new TransformInterceptor(),
   );
-
-  // Local-disk image storage (see UploadsService). Not used when moving to S3/CDN.
-  app.useStaticAssets(app.get(UploadsService).uploadRoot, {
-    prefix: `${PUBLIC_UPLOAD_PREFIX}/`,
-    maxAge: '7d',
-    immutable: true,
-    index: false,
-    dotfiles: 'deny',
-  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('E-commerce API')

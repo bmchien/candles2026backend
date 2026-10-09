@@ -371,44 +371,39 @@ describe('Admin APIs (e2e)', () => {
       await ctx.http().get(`/products/${fx.products.fixed.code}`).expect(200);
     });
 
-    it('uploads and removes images, rejecting non-images', async () => {
+    it('stores image URLs only (no file uploads) and removes one image', async () => {
       const id = fx.products.laptop.id;
-      const bad = await ctx
+      await ctx
         .http()
-        .post(`/admin/products/${id}/images`)
+        .put(`/admin/products/${id}`)
         .set(bearer(admin))
-        .attach('files', Buffer.from('<script>alert(1)</script>'), {
-          filename: 'evil.png',
-          contentType: 'image/png',
-        })
+        .send({ images: [{ url: '/uploads/products/x.png' }] })
         .expect(400);
-      expect(bad.body.code).toBe('INVALID_FILE');
-
       const res = await ctx
+        .http()
+        .put(`/admin/products/${id}`)
+        .set(bearer(admin))
+        .send({ images: [{ url: 'https://img.test/a.png' }, { url: 'https://img.test/b.png' }] })
+        .expect(200);
+      const [first] = res.body.data.images as { id: number }[];
+      await ctx
         .http()
         .post(`/admin/products/${id}/images`)
         .set(bearer(admin))
         .attach('files', PNG, { filename: 'photo.png', contentType: 'image/png' })
-        .expect(201);
-      const uploaded = res.body.data.images.at(-1);
-      expect(uploaded.url).toMatch(/^http:\/\/localhost:3001\/uploads\/products\/[0-9a-f-]+\.png$/);
+        .expect(404);
 
-      const path = new URL(uploaded.url).pathname;
-      await ctx
+      const after = await ctx
         .http()
-        .get(path)
-        .expect(200)
-        .expect('Content-Type', /image\/png/);
-
-      await ctx
-        .http()
-        .delete(`/admin/products/${id}/images/${uploaded.id}`)
+        .delete(`/admin/products/${id}/images/${first.id}`)
         .set(bearer(admin))
         .expect(200);
-      await ctx.http().get(path).expect(404);
+      expect(after.body.data.images.map((i: { url: string }) => i.url)).toEqual([
+        'https://img.test/b.png',
+      ]);
       await ctx
         .http()
-        .delete(`/admin/products/${id}/images/${uploaded.id}`)
+        .delete(`/admin/products/${id}/images/${first.id}`)
         .set(bearer(admin))
         .expect(404);
     });

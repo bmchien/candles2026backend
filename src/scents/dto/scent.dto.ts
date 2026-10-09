@@ -32,15 +32,13 @@ export class CreateScentDto {
   @IsEnum(ScentType)
   type: ScentType;
 
-  /** http(s) URL or the /uploads/... URL returned by POST /admin/scents/image; null removes it */
+  /** http(s) URL of an image hosted elsewhere; null removes it */
   @ApiPropertyOptional({ nullable: true, type: String })
   @Transform(trim)
   @ValidateIf((_o, v) => v !== null)
   @IsString()
   @MaxLength(1000)
-  @Matches(/^(https?:\/\/\S+|\/uploads\/\S+)$/, {
-    message: 'imageUrl must be an http(s) URL or an /uploads/ path',
-  })
+  @Matches(/^https?:\/\/\S+$/, { message: 'imageUrl must be an http(s) URL' })
   @IsOptional()
   imageUrl?: string | null;
 
@@ -72,8 +70,4 @@ export class ScentResponseDto {
 
 export class AdminScentResponseDto extends ScentResponseDto {
   @ApiProperty() is_active: boolean;
-}
-
-export class UploadedImageDto {
-  @ApiProperty({ example: 'http://localhost:3001/uploads/scents/2f1c….webp' }) url: string;
 }

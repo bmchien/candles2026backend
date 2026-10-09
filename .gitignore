@@ -11,12 +11,12 @@ coverage/
 .env.*
 !.env.example
 
-# uploaded images (local storage driver, UPLOAD_DIR at the project root) — NOT src/uploads
-/uploads/
-
 # logs / OS / IDE
 *.log
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+
+# legacy local image uploads (feature removed; images are URLs now)
+/uploads/

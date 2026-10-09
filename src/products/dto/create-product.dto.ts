@@ -22,12 +22,10 @@ import {
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 export class ProductImageInputDto {
-  /** Absolute http(s) URL, or a path returned by the image upload endpoint */
+  /** Absolute http(s) URL of an image hosted elsewhere (no uploads to this server) */
   @IsString()
   @MaxLength(1000)
-  @Matches(/^(https?:\/\/\S+|\/uploads\/\S+)$/, {
-    message: 'url must be an http(s) URL or an /uploads/ path',
-  })
+  @Matches(/^https?:\/\/\S+$/, { message: 'url must be an http(s) URL' })
   url: string;
 
   @IsInt()

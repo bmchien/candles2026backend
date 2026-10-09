@@ -19,7 +19,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { ScentsModule } from './scents/scents.module';
 import { TagsModule } from './tags/tags.module';
-import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -89,7 +88,6 @@ import { UsersModule } from './users/users.module';
 
     PrismaModule,
     CacheModule,
-    UploadsModule,
     UsersModule,
     AuthModule,
     CategoriesModule,

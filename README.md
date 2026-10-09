@@ -36,7 +36,6 @@ cp .env.example .env      # then edit .env (see below)
 | `TRUST_PROXY` | | `1` | Number of reverse-proxy hops to trust for client IPs. |
 | `THROTTLE_TTL` / `THROTTLE_LIMIT` | | `60000` / `120` | Global rate limit: requests per window (ms) per IP. |
 | `AUTH_THROTTLE_LIMIT` | | `10` | Stricter limit for `/auth/*` per window. |
-| `UPLOAD_DIR` / `UPLOAD_MAX_SIZE_MB` | | `uploads` / `5` | Local image storage folder and max image size. |
 | `ADDRESS_API_BASE_URL` | | `https://provinces.open-api.vn/api/v2` | Vietnamese address provider. |
 | `LOG_LEVEL` | | `info` | pino log level. |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME` | seed only | — | Admin account created by `npm run seed`. |
@@ -190,8 +189,7 @@ For `PICKUP`, `address` may be omitted or `null`. For `DELIVERY`, every address 
 | PATCH | `/admin/products/:id/status` | `{ status }` |
 | PATCH | `/admin/products/:id/visibility` | `{ isActive }` (hide / show) |
 | DELETE | `/admin/products/:id` | Delete (order history keeps its snapshot) |
-| POST | `/admin/products/:id/images` | multipart `files[]` (jpeg/png/webp/gif) |
-| DELETE | `/admin/products/:id/images/:imageId` | Remove an image |
+| DELETE | `/admin/products/:id/images/:imageId` | Remove one image URL from a product |
 | POST | `/admin/products/import` | multipart `file` (CSV) → `{ total, success, failed, created, updated, errors[{row, message}] }` |
 | POST / PUT / DELETE | `/admin/categories[/:id]` | Category CRUD (delete → 409 `CATEGORY_IN_USE` if products use it) |
 | POST / PUT / DELETE | `/admin/tags[/:id]` | Tag CRUD |
@@ -200,7 +198,6 @@ For `PICKUP`, `address` may be omitted or `null`. For `DELIVERY`, every address 
 | GET | `/admin/orders/:id` | Detail incl. user and `allowed_transitions` |
 | PUT | `/admin/orders/:id/status` | `{ status }` with transition validation |
 | GET / POST / PUT / DELETE | `/admin/scents[/:id]` | Scent CRUD: `{ name, description, type: PERFUME|NATURAL, imageUrl?, isActive? }` (hide with `isActive: false`) |
-| POST | `/admin/scents/image` | multipart `file` (jpeg/png/webp/gif) → `{ url }` to use as `imageUrl` |
 | GET | `/admin/dashboard` | Product/order/revenue/customer stats, top products, recent orders |
 
 `desiredDate` (desired receive date, `YYYY-MM-DD`) is required: from today to 180 days ahead in Vietnam time (`400 INVALID_DESIRED_DATE` otherwise). Orders return it as `desired_date` (`null` for older orders).
@@ -259,7 +256,6 @@ src/
   orders/                  checkout transaction, history, admin order management, status machine
   address/                 AddressService (isolated external provider) + endpoints
   admin/                   dashboard
-  uploads/                 image storage abstraction (local disk driver)
 test/                      e2e suites (supertest against a real PostgreSQL)
 ```
 
@@ -301,7 +297,7 @@ These choices were made where the HLD or spec left room. Each is the simplest pr
 | **Product deletion** | Hard delete. `order_items.product_id` becomes `NULL` (FK `ON DELETE SET NULL`), and the order keeps its name, code and price snapshot. Hiding (`isActive: false`) is the recommended way to retire products. |
 | **Delivery address** | Stored on the order (no address book table in the HLD). Province/ward codes are verified against the address provider, and the canonical names are stored. If the provider is down, checkout is not blocked and the client's names are used. |
 | **Address provider** | `provinces.open-api.vn` API v2, which reflects the 2-level (province → ward) structure in force since 07/2025. Nothing is stored in PostgreSQL; responses are cached for 24 h in memory. To switch provider, change only `src/address/address.service.ts`. |
-| **Images** | `UploadsService` validates the real file type via magic bytes (jpeg/png/webp/gif) and size, stores files under random names on local disk, and serves them at `/uploads`. For multi-instance production, replace the two storage methods with S3-compatible storage + CDN (HLD §3). Admins can also set image URLs directly in `images[]`. |
+| **Images** | Images are **URLs only** (`https://…`), hosted elsewhere (e.g. a CDN, Cloudinary, Google Drive public link). The API stores no files, so it needs no persistent disk and scales horizontally. |
 | **CSV import** | File and header are validated up front. Each row is validated and reported, and each valid row is upserted in its own transaction, so one bad row never blocks the others or leaves a half-written product. Unknown categories or tags are errors (they are not auto-created). Limits: 5 MB, 5 000 rows. |
 | **Auth** | argon2id (OWASP parameters), HS256 JWT. The user is re-loaded on each authenticated request, so deleted users and role changes apply immediately. Login has constant-time behaviour for unknown emails. Registration always creates `CUSTOMER`. Admins are created by the seed (or by promoting a user in the DB). |
 | **Security** | Helmet, CORS allow-list, global rate limit plus a stricter `/auth` limit, global `ValidationPipe` (whitelist + forbid unknown fields), parameterised SQL only (Prisma), 1 MB JSON body limit, uploads checked by content. |

@@ -11,10 +11,9 @@ import {
   Put,
   Query,
   UploadedFile,
-  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { memoryStorage } from 'multer';
@@ -31,8 +30,6 @@ import { AdminProductQueryDto } from './dto/product-query.dto';
 import { AdminProductDto, ImportSummaryDto } from './dto/product-response.dto';
 import { MAX_IMPORT_FILE_SIZE, ProductsImportService } from './products-import.service';
 import { ProductsService } from './products.service';
-
-const IMAGE_UPLOAD_LIMIT_BYTES = Number(process.env.UPLOAD_MAX_SIZE_MB ?? 5) * 1024 * 1024;
 
 @ApiTags('Admin - Products')
 @ApiBearerAuth()
@@ -135,33 +132,8 @@ export class AdminProductsController {
     return this.productsService.remove(id);
   }
 
-  @Post(':id/images')
-  @UseInterceptors(
-    FilesInterceptor('files', 10, {
-      storage: memoryStorage(),
-      limits: { fileSize: IMAGE_UPLOAD_LIMIT_BYTES },
-    }),
-  )
-  @ApiOperation({ summary: 'Upload product images (jpeg/png/webp/gif, appended at the end)' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['files'],
-      properties: { files: { type: 'array', items: { type: 'string', format: 'binary' } } },
-    },
-  })
-  @ApiOkWrapped(AdminProductDto, { status: HttpStatus.CREATED })
-  @ApiErrors(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND, HttpStatus.PAYLOAD_TOO_LARGE)
-  uploadImages(
-    @Param('id', ParseIdPipe) id: bigint,
-    @UploadedFiles() files: Express.Multer.File[],
-  ) {
-    return this.productsService.addImages(id, files);
-  }
-
   @Delete(':id/images/:imageId')
-  @ApiOperation({ summary: 'Remove a product image' })
+  @ApiOperation({ summary: 'Remove one image (URL) from a product' })
   @ApiOkWrapped(AdminProductDto)
   @ApiErrors(HttpStatus.NOT_FOUND)
   removeImage(

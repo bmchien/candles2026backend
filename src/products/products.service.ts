@@ -10,7 +10,6 @@ import { AppException } from '../common/exceptions/app.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
 import { INTERACTIVE_TX_OPTIONS } from '../prisma/transaction-options';
-import { UploadsService } from '../uploads/uploads.service';
 import { CreateProductDto, ProductImageInputDto, UpdateProductDto } from './dto/create-product.dto';
 import { AdminProductQueryDto, ProductQueryDto, ProductSort } from './dto/product-query.dto';
 import {
@@ -33,7 +32,6 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: MemoryCacheService,
-    private readonly uploads: UploadsService,
   ) {}
 
   // ---------------------------------------------------------------- public reads
@@ -201,7 +199,6 @@ export class ProductsService {
     const existing = await this.findOrThrow(id);
     // Order items keep their snapshot (name/code/price); product_id is set to NULL by the FK.
     await this.prisma.product.delete({ where: { id } });
-    await Promise.all(existing.images.map((img) => this.uploads.deleteByUrl(img.url)));
     this.invalidateCatalog();
     this.logger.log({ productId: id.toString(), code: existing.code }, 'Admin deleted product');
     return { id, deleted: true };
@@ -209,36 +206,13 @@ export class ProductsService {
 
   // ---------------------------------------------------------------- images
 
-  async addImages(id: bigint, files: Express.Multer.File[]) {
-    if (!files?.length)
-      throw AppException.badRequest(ErrorCode.INVALID_FILE, 'No image files uploaded');
-    const product = await this.findOrThrow(id);
-    if (product.images.length + files.length > 20) {
-      throw AppException.badRequest(ErrorCode.INVALID_FILE, 'A product can have at most 20 images');
-    }
-    // Validate every file before storing any of them.
-    files.forEach((f) => this.uploads.assertImage(f));
-    const urls = await Promise.all(files.map((f) => this.uploads.saveImage(f, 'products')));
-
-    const nextPosition = product.images.reduce((max, img) => Math.max(max, img.position + 1), 0);
-    await this.prisma.productImage.createMany({
-      data: urls.map((url, i) => ({ productId: id, url, position: nextPosition + i })),
-    });
-    this.invalidateCatalog();
-    this.logger.log(
-      { productId: id.toString(), count: urls.length },
-      'Admin uploaded product images',
-    );
-    return this.getAdminById(id);
-  }
-
+  /** Images are URLs (set via create/update `images`); this only detaches one. */
   async removeImage(id: bigint, imageId: bigint) {
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId: id },
     });
     if (!image) throw AppException.notFound(ErrorCode.IMAGE_NOT_FOUND, 'Image not found');
     await this.prisma.productImage.delete({ where: { id: imageId } });
-    await this.uploads.deleteByUrl(image.url);
     this.invalidateCatalog();
     this.logger.log(
       { productId: id.toString(), imageId: imageId.toString() },

@@ -1,5 +1,3 @@
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { resolveTestDatabaseUrl } from './test-database';
 
 // Runs before each e2e test file, before the app modules are imported.
@@ -13,4 +11,3 @@ process.env.FRONTEND_URL = 'http://localhost:3000';
 process.env.APP_URL = 'http://localhost:3001';
 process.env.THROTTLE_LIMIT = '100000';
 process.env.AUTH_THROTTLE_LIMIT = '100000';
-process.env.UPLOAD_DIR = path.join(os.tmpdir(), 'ecommerce-e2e-uploads');

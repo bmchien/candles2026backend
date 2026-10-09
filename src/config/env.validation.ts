@@ -73,17 +73,6 @@ export class EnvironmentVariables {
   @IsOptional()
   AUTH_THROTTLE_LIMIT = 10;
 
-  @IsString()
-  @IsOptional()
-  UPLOAD_DIR = 'uploads';
-
-  @Transform(({ value }) => Number(value))
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  @IsOptional()
-  UPLOAD_MAX_SIZE_MB = 5;
-
   @IsUrl({ require_tld: false })
   @IsOptional()
   ADDRESS_API_BASE_URL = 'https://provinces.open-api.vn/api/v2';
