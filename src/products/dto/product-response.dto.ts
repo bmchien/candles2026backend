@@ -104,6 +104,13 @@ export class AdminProductDto extends ProductDetailDto {
   @ApiProperty()
   is_active: boolean;
 
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Storefront position (1 = first); null = not pinned',
+  })
+  display_order: number | null;
+
   @ApiPropertyOptional({ example: 1 })
   category_id: number;
 }

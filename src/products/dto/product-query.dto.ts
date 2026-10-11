@@ -5,6 +5,8 @@ import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } fro
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 export enum ProductSort {
+  /** Admin order (display_order 1, 2, 3…), then the rest newest first */
+  FEATURED = 'featured',
   NEWEST = 'newest',
   OLDEST = 'oldest',
   PRICE_ASC = 'price_asc',
@@ -69,10 +71,10 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsOptional()
   on_sale?: boolean;
 
-  @ApiPropertyOptional({ enum: ProductSort, default: ProductSort.NEWEST })
+  @ApiPropertyOptional({ enum: ProductSort, default: ProductSort.FEATURED })
   @IsEnum(ProductSort)
   @IsOptional()
-  sort: ProductSort = ProductSort.NEWEST;
+  sort: ProductSort = ProductSort.FEATURED;
 }
 
 export class AdminProductQueryDto extends ProductQueryDto {

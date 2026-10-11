@@ -131,6 +131,38 @@ describe('Catalog: products, categories, tags (e2e)', () => {
       await ctx.http().get('/products?on_sale=yes').expect(400);
     });
 
+    it('lists admin-ordered products first by default (featured), the rest newest first', async () => {
+      const admin = await loginAdmin(ctx);
+      const pin = (id: bigint, displayOrder: number | null) =>
+        ctx
+          .http()
+          .put(`/admin/products/${id}`)
+          .set(bearer(admin))
+          .send({ displayOrder })
+          .expect(200);
+      await pin(fx.products.plain.id, 2);
+      await pin(fx.products.fixed.id, 1);
+      try {
+        const res = await ctx.http().get('/products?limit=100').expect(200);
+        expect(codes(res.body).slice(0, 2)).toEqual(['PHONE-FIXED', 'PHONE-PLAIN']);
+        const admin2 = await ctx
+          .http()
+          .get(`/admin/products?q=PHONE-FIXED`)
+          .set(bearer(admin))
+          .expect(200);
+        expect(admin2.body.data[0].display_order).toBe(1);
+        await ctx
+          .http()
+          .put(`/admin/products/${fx.products.plain.id}`)
+          .set(bearer(admin))
+          .send({ displayOrder: 0 })
+          .expect(400);
+      } finally {
+        await pin(fx.products.plain.id, null);
+        await pin(fx.products.fixed.id, null);
+      }
+    });
+
     it('filters by the final (discounted) price range', async () => {
       // PHONE-DISC: 1,000,000 -> 900,000 ; PHONE-FIXED: 500,000 -> 300,000 ; PHONE-EXPIRED stays 800,000
       const res = await ctx.http().get('/products?min_price=300000&max_price=900000').expect(200);

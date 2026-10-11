@@ -103,6 +103,9 @@ model Product {
   discountEnd      DateTime?     @map("discount_end")
   status           ProductStatus @default(IN_STOCK)
   isActive         Boolean       @default(true) @map("is_active")
+  // Admin-chosen position in the storefront (1 = first). NULL = not pinned: shown after the
+  // ordered ones, newest first.
+  displayOrder     Int?          @map("display_order")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
@@ -118,6 +121,7 @@ model Product {
   @@index([isActive])
   @@index([price])
   @@index([isActive, createdAt])
+  @@index([displayOrder, createdAt])
   @@map("products")
 }
 

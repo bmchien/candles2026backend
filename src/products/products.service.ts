@@ -115,6 +115,7 @@ export class ProductsService {
         discountEnd: dto.discountEnd ?? null,
         status: dto.status,
         isActive: dto.isActive,
+        displayOrder: dto.displayOrder ?? null,
         tags: tagIds ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
         images: dto.images ? { create: this.normalizeImages(dto.images) } : undefined,
       },
@@ -182,6 +183,7 @@ export class ProductsService {
           discountEnd: merged.discountEnd,
           status: dto.status,
           isActive: dto.isActive,
+          displayOrder: dto.displayOrder,
         },
         include: productInclude,
       });
@@ -369,6 +371,9 @@ export class ProductsService {
 
   private orderBy(sort: ProductSort, fp: Prisma.Sql): Prisma.Sql {
     switch (sort) {
+      case ProductSort.FEATURED:
+        // Pinned products by the admin's number, then everything else newest first.
+        return Prisma.sql`ORDER BY p.display_order ASC NULLS LAST, p.created_at DESC, p.id DESC`;
       case ProductSort.OLDEST:
         return Prisma.sql`ORDER BY p.created_at ASC, p.id ASC`;
       case ProductSort.PRICE_ASC:

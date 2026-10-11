@@ -55,6 +55,7 @@ export function toAdminProduct(p: ProductWithRelations, now = new Date()) {
   return {
     ...toProductDetail(p, now),
     is_active: p.isActive,
+    display_order: p.displayOrder,
     category_id: p.categoryId,
   };
 }

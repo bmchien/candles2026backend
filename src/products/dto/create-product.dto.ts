@@ -16,6 +16,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -104,6 +105,15 @@ export class CreateProductDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  /** Storefront position chosen by the admin (1 = first); null = not pinned (newest first after the pinned ones) */
+  @ApiPropertyOptional({ minimum: 1, maximum: 9999, nullable: true, type: Number })
+  @ValidateIf((_o, v) => v !== null)
+  @IsInt()
+  @Min(1)
+  @Max(9999)
+  @IsOptional()
+  displayOrder?: number | null;
 
   /** Replaces the product's tags */
   @IsArray()
